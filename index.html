@@ -81,7 +81,6 @@
   .header-text h1 { font-size: 20px; font-weight: 500; letter-spacing: .5px; }
   .header-text p { font-size: 12px; opacity: .85; margin-top: 2px; }
 
-  /* 圆形 emoji 主题切换按钮 */
   .theme-toggle {
     flex: 0 0 auto;
     width: 48px;
@@ -390,7 +389,6 @@
 <main>
   <div class="wizard-viewport" id="wizardViewport">
 
-    <!-- 第 0 页 · 选择模式 -->
     <section class="wizard-page active" id="page-mode">
       <div class="page-inner">
         <h2 class="page-title">你想做什么？</h2>
@@ -410,7 +408,6 @@
       </div>
     </section>
 
-    <!-- 编码 · 第 1 步：伪装内容 -->
     <section class="wizard-page" id="page-cover">
       <div class="page-inner">
         <div class="step-indicator">步骤 1 / 4</div>
@@ -426,7 +423,6 @@
       </div>
     </section>
 
-    <!-- 编码 · 第 2 步：秘密信息 -->
     <section class="wizard-page" id="page-secret">
       <div class="page-inner">
         <div class="step-indicator">步骤 2 / 4</div>
@@ -442,7 +438,6 @@
       </div>
     </section>
 
-    <!-- 编码 · 第 3 步：密码 -->
     <section class="wizard-page" id="page-password">
       <div class="page-inner">
         <div class="step-indicator">步骤 3 / 4</div>
@@ -458,7 +453,6 @@
       </div>
     </section>
 
-    <!-- 编码 · 第 4 步：结果 -->
     <section class="wizard-page" id="page-result">
       <div class="page-inner">
         <div class="step-indicator">步骤 4 / 4 · 完成</div>
@@ -483,7 +477,6 @@
       </div>
     </section>
 
-    <!-- 解码 · 第 1 步：粘贴 -->
     <section class="wizard-page" id="page-paste">
       <div class="page-inner">
         <div class="step-indicator">步骤 1 / 2</div>
@@ -505,7 +498,6 @@
       </div>
     </section>
 
-    <!-- 解码 · 第 2 步：结果 -->
     <section class="wizard-page" id="page-decoded">
       <div class="page-inner">
         <div class="step-indicator">步骤 2 / 2 · 完成</div>
@@ -539,10 +531,6 @@
 (function () {
   "use strict";
 
-  /* ============================================================
-   * 主题切换（圆形 emoji 按钮）
-   * ============================================================ */
-
   const THEME_KEY = 'invisitext-theme';
   const themeToggle = document.getElementById('themeToggle');
   const themeIcon = document.getElementById('themeIcon');
@@ -562,17 +550,12 @@
     try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
   }
 
-  // 初始化按钮 emoji（head 内联脚本已经应用过保存的主题）
   themeIcon.textContent = currentTheme() === 'dark' ? '🌙' : '☀️';
 
   themeToggle.addEventListener('click', () => {
     applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
     requestAnimationFrame(syncViewportHeight);
   });
-
-  /* ============================================================
-   * 常量与工具
-   * ============================================================ */
 
   const $ = (id) => document.getElementById(id);
 
@@ -688,7 +671,6 @@
     }
   }
 
-  /* ---------- Base64URL ---------- */
   function bytesToBase64Url(bytes) {
     let bin = "";
     const CHUNK = 0x8000;
@@ -708,7 +690,6 @@
     return bytes;
   }
 
-  /* ---------- 压缩（可选） ---------- */
   async function compressBytes(bytes) {
     if (typeof CompressionStream === 'undefined') return null;
     try {
@@ -780,10 +761,6 @@
     throw new Error("链接数据格式未知");
   }
 
-  /* ============================================================
-   * 加密
-   * ============================================================ */
-
   function ensureCrypto() {
     if (!window.crypto || !window.crypto.subtle) {
       throw new Error("当前环境不支持 Web Crypto，请通过 HTTPS 或 localhost 打开");
@@ -803,10 +780,6 @@
       ["encrypt", "decrypt"]
     );
   }
-
-  /* ============================================================
-   * 组包 / 解包
-   * ============================================================ */
 
   async function buildPacket(secretBytes, password) {
     let flags = 0;
@@ -918,10 +891,6 @@
     return new TextDecoder("utf-8", { fatal: true }).decode(payload);
   }
 
-  /* ============================================================
-   * 状态
-   * ============================================================ */
-
   const FLOWS = {
     encode: { pages: ['page-cover', 'page-secret', 'page-password', 'page-result'] },
     decode: { pages: ['page-paste', 'page-decoded'] },
@@ -941,10 +910,6 @@
   let decodeShowingVisual = false;
 
   const viewport = $('wizardViewport');
-
-  /* ============================================================
-   * UI 辅助
-   * ============================================================ */
 
   function setMsg(el, text, kind) {
     if (!el) return;
@@ -980,10 +945,6 @@
   function byteLengthOf(str) {
     return new TextEncoder().encode(str).length;
   }
-
-  /* ============================================================
-   * 向导导航
-   * ============================================================ */
 
   function syncViewportHeight() {
     const active = document.querySelector('.wizard-page.active');
@@ -1086,10 +1047,6 @@
     navigateTo(FLOWS[mode].pages[0], 'forward');
   }
 
-  /* ============================================================
-   * 编码：生成
-   * ============================================================ */
-
   async function handleGenerate() {
     const cover    = $('coverText').value;
     const secret   = $('secretText').value;
@@ -1141,10 +1098,6 @@
       btn.textContent = oldText;
     }
   }
-
-  /* ============================================================
-   * 解码
-   * ============================================================ */
 
   async function handleDecode() {
     const input    = $('decodeIn').value;
@@ -1213,10 +1166,6 @@
     }
   }
 
-  /* ============================================================
-   * 结果页操作
-   * ============================================================ */
-
   async function copyEncodeResult() {
     if (!encodeResultRaw) return;
     const ok = await copyText(encodeResultRaw);
@@ -1245,10 +1194,6 @@
     }
     syncViewportHeight();
   }
-
-  /* ============================================================
-   * 分享链接
-   * ============================================================ */
 
   async function copyShareLink() {
     if (!encodePacketBytes) return;
@@ -1322,10 +1267,6 @@
       return true;
     }
   }
-
-  /* ============================================================
-   * 事件绑定
-   * ============================================================ */
 
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
