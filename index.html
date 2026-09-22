@@ -4,179 +4,1394 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>InvisiText — 零宽字符隐写工具</title>
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('invisitext-theme');
+      if (saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } catch (e) {}
+  })();
+</script>
 <style>
+  :root {
+    --primary: #1a73e8;
+    --primary-dark: #1765cc;
+    --primary-light: #e8f0fe;
+    --text: #202124;
+    --text-secondary: #5f6368;
+    --border: #dadce0;
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --surface-2: #f8f9fa;
+    --surface-3: #f1f3f4;
+    --success: #188038;
+    --error: #d93025;
+    --warn: #b06000;
+    --shadow-sm: 0 1px 3px rgba(60,64,67,.08);
+    --shadow-md: 0 2px 10px rgba(60,64,67,.12);
+  }
+  [data-theme="dark"] {
+    --primary: #8ab4f8;
+    --primary-dark: #aecbfa;
+    --primary-light: #1a3a5c;
+    --text: #e8eaed;
+    --text-secondary: #9aa0a6;
+    --border: #3c4043;
+    --bg: #202124;
+    --surface: #292a2d;
+    --surface-2: #1f2023;
+    --surface-3: #3c4043;
+    --success: #81c995;
+    --error: #f28b82;
+    --warn: #fdd663;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.4);
+    --shadow-md: 0 2px 10px rgba(0,0,0,.5);
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { transition: background-color .25s ease, color .25s ease; }
   body {
-    font-family: "Roboto", "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: #fafafa;
-    color: #212121;
+    font-family: "Roboto", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    -webkit-font-smoothing: antialiased;
   }
   header {
-    background: #1a73e8;
+    background: linear-gradient(135deg, #1a73e8 0%, #4285f4 100%);
     color: #fff;
-    padding: 20px 24px;
-    box-shadow: 0 2px 4px rgba(0,0,0,.2);
+    padding: 18px 24px;
+    box-shadow: var(--shadow-md);
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
-  header h1 { font-size: 22px; font-weight: 500; }
-  header p { font-size: 13px; opacity: .85; margin-top: 4px; }
+  .header-content {
+    max-width: 680px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .header-text h1 { font-size: 20px; font-weight: 500; letter-spacing: .5px; }
+  .header-text p { font-size: 12px; opacity: .85; margin-top: 2px; }
+
+  /* 圆形 emoji 主题切换按钮 */
+  .theme-toggle {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    background: rgba(255,255,255,.15);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.28);
+    border-radius: 50%;
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, transform .1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .theme-toggle:hover { background: rgba(255,255,255,.28); }
+  .theme-toggle:active { transform: scale(.92); }
+  .theme-icon {
+    font-size: 26px;
+    line-height: 1;
+    display: block;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.15));
+  }
+  @media (max-width: 480px) {
+    .theme-toggle { width: 42px; height: 42px; }
+    .theme-icon { font-size: 22px; }
+  }
+
   main {
     flex: 1;
-    max-width: 720px;
+    max-width: 680px;
     width: 100%;
     margin: 0 auto;
-    padding: 24px 16px;
+    padding: 28px 16px 60px;
   }
-  .card {
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    padding: 20px;
-    margin-bottom: 20px;
+
+  .wizard-viewport {
+    position: relative;
+    overflow: hidden;
+    transition: height .5s cubic-bezier(.4, 0, .2, 1);
   }
-  .card h2 {
-    font-size: 15px;
-    font-weight: 500;
-    color: #1a73e8;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 12px;
-  }
-  textarea {
+  .wizard-page {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    min-height: 90px;
-    border: 1px solid #bdbdbd;
+    padding: 0 2px 8px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0);
+    transition:
+      transform .5s cubic-bezier(.4, 0, .2, 1),
+      opacity .35s ease;
+    will-change: transform, opacity;
+  }
+  .wizard-page.active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+  .wizard-page.exit-top    { transform: translateY(-100%); opacity: 0; }
+  .wizard-page.enter-bottom{ transform: translateY(100%);  opacity: 0; }
+  .wizard-page.exit-bottom { transform: translateY(100%);  opacity: 0; }
+  .wizard-page.enter-top   { transform: translateY(-100%); opacity: 0; }
+
+  .page-inner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px 24px;
+    box-shadow: var(--shadow-sm);
+    transition: background-color .25s ease, border-color .25s ease;
+  }
+  .step-indicator {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-bottom: 14px;
+    letter-spacing: .5px;
+  }
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+    letter-spacing: .2px;
+  }
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 22px;
+  }
+
+  .choice-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 20px;
+  }
+  @media (max-width: 500px) {
+    .choice-grid { grid-template-columns: 1fr; }
+  }
+  .choice-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 18px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    transition: transform .2s, border-color .2s, background .2s, box-shadow .2s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .choice-card:hover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(26,115,232,.18);
+  }
+  .choice-card:active { transform: translateY(0); }
+  .choice-icon { font-size: 30px; line-height: 1; }
+  .choice-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .choice-desc { font-size: 12px; color: var(--text-secondary); }
+
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 16px 0 6px;
+    font-weight: 500;
+  }
+  label:first-of-type { margin-top: 0; }
+  label .hint { font-weight: 400; color: var(--text-secondary); opacity: .75; }
+  textarea, input[type="password"], input[type="text"] {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
     padding: 10px 12px;
     font-size: 14px;
     font-family: inherit;
-    resize: vertical;
     outline: none;
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color .15s, box-shadow .15s, background-color .25s;
   }
-  textarea:focus { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
-  .row { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
-  button {
+  textarea {
+    min-height: 90px;
+    resize: vertical;
+    line-height: 1.55;
+  }
+  textarea:focus, input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(26,115,232,.15);
+  }
+  textarea::placeholder, input::placeholder {
+    color: var(--text-secondary);
+    opacity: .7;
+  }
+
+  button { font-family: inherit; }
+  .btn {
     background: #1a73e8;
     color: #fff;
     border: none;
-    padding: 10px 24px;
+    border-radius: 8px;
+    padding: 10px 20px;
     font-size: 14px;
     cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: .5px;
-    transition: background .2s;
+    letter-spacing: .3px;
+    transition: background .15s, transform .1s;
   }
-  button:hover { background: #1765cc; }
-  button.ghost { background: #fff; color: #1a73e8; border: 1px solid #1a73e8; }
-  button.ghost:hover { background: #e8f0fe; }
+  .btn:hover { background: #1765cc; }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { background: #bdbdbd; cursor: not-allowed; transform: none; }
+
+  .btn.ghost {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { background: var(--primary-light); border-color: var(--primary); }
+
+  [data-theme="dark"] .btn {
+    background: #8ab4f8;
+    color: #202124;
+  }
+  [data-theme="dark"] .btn:hover { background: #aecbfa; }
+  [data-theme="dark"] .btn:disabled { background: #5f6368; color: #9aa0a6; }
+  [data-theme="dark"] .btn.ghost {
+    background: transparent;
+    color: #8ab4f8;
+    border-color: var(--border);
+  }
+  [data-theme="dark"] .btn.ghost:hover {
+    background: var(--primary-light);
+    border-color: #8ab4f8;
+  }
+
+  .step-nav {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .step-nav .btn { flex: 0 0 auto; }
+  .step-nav-right {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+
   .output {
-    background: #f5f5f5;
-    border: 1px dashed #bdbdbd;
+    background: var(--surface-2);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
     padding: 12px;
-    margin-top: 12px;
     font-size: 14px;
     word-break: break-all;
     min-height: 48px;
     white-space: pre-wrap;
+    font-family: "Roboto Mono", Consolas, monospace;
+    color: var(--text);
+    line-height: 1.6;
+    transition: background-color .25s ease, border-color .25s ease;
   }
-  .msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
-  .msg.ok { color: #188038; }
-  .msg.err { color: #d93025; }
+  .output.placeholder { color: var(--text-secondary); font-family: inherit; font-style: italic; opacity: .8; }
+  .output.visualized { font-size: 13px; line-height: 1.9; }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 10px;
+  }
+  .meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .meta code {
+    background: var(--surface-3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--text);
+  }
+
+  .msg { font-size: 13px; margin-top: 8px; min-height: 20px; }
+  .msg.ok { color: var(--success); }
+  .msg.err { color: var(--error); }
+  .msg.warn { color: var(--warn); }
+
+  .home-btn {
+    display: block;
+    width: 100%;
+    margin-top: 18px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px dashed var(--border);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .home-btn:hover {
+    background: var(--surface-3);
+    color: var(--primary);
+    border-color: var(--primary);
+    border-style: solid;
+  }
+
   footer {
     text-align: center;
     font-size: 12px;
-    color: #757575;
+    color: var(--text-secondary);
     padding: 16px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--border);
+    transition: color .25s ease, border-color .25s ease;
   }
-  footer a { color: #1a73e8; text-decoration: none; }
 </style>
 </head>
 <body>
-<header>
-  <h1>InvisiText</h1>
-  <p>把秘密藏进看不见的地方 —— 零宽字符隐写工具</p>
-</header>
-<main>
-  <div class="card">
-    <h2>编码 · 藏入密文</h2>
-    <textarea id="coverText" placeholder="载体文字（别人看到的表面内容），例如：今天天气真好"></textarea>
-    <textarea id="secretText" placeholder="秘密信息（真正想藏的内容）" style="margin-top:10px"></textarea>
-    <div class="row">
-      <button onclick="encode()">生成隐写文本</button>
-      <button class="ghost" onclick="copyResult('encodeOut')">复制结果</button>
-    </div>
-    <div class="output" id="encodeOut">（结果会显示在这里，复制后可直接发送）</div>
-    <div class="msg" id="encodeMsg"></div>
-  </div>
 
-  <div class="card">
-    <h2>解码 · 读取密文</h2>
-    <textarea id="decodeIn" placeholder="粘贴收到的隐写文本"></textarea>
-    <div class="row">
-      <button onclick="decode()">解码</button>
-      <button class="ghost" onclick="copyResult('decodeOut')">复制结果</button>
+<header>
+  <div class="header-content">
+    <div class="header-text">
+      <h1>InvisiText</h1>
+      <p>把秘密藏进看不见的地方 · 零宽字符隐写工具</p>
     </div>
-    <div class="output" id="decodeOut">（解码结果会显示在这里）</div>
-    <div class="msg" id="decodeMsg"></div>
+    <button type="button" class="theme-toggle" id="themeToggle" aria-label="切换深浅色主题">
+      <span class="theme-icon" id="themeIcon">☀️</span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="wizard-viewport" id="wizardViewport">
+
+    <!-- 第 0 页 · 选择模式 -->
+    <section class="wizard-page active" id="page-mode">
+      <div class="page-inner">
+        <h2 class="page-title">你想做什么？</h2>
+        <p class="page-sub">选择一种模式开始，所有处理都在本地完成，不上传任何数据</p>
+        <div class="choice-grid">
+          <button type="button" class="choice-card" data-mode="encode">
+            <span class="choice-icon">🔒</span>
+            <span class="choice-title">加密 · 藏入密文</span>
+            <span class="choice-desc">把秘密藏进普通文字里</span>
+          </button>
+          <button type="button" class="choice-card" data-mode="decode">
+            <span class="choice-icon">🔓</span>
+            <span class="choice-title">解密 · 读取密文</span>
+            <span class="choice-desc">从文字里取回秘密</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 编码 · 第 1 步：伪装内容 -->
+    <section class="wizard-page" id="page-cover">
+      <div class="page-inner">
+        <div class="step-indicator">步骤 1 / 4</div>
+        <h2 class="page-title">填写伪装内容</h2>
+        <p class="page-sub">别人看到的表面文字，秘密将隐藏在其中</p>
+        <label for="coverText">伪装文字</label>
+        <textarea id="coverText" placeholder="例如：今天天气真好，我们一起去公园散步吧。"></textarea>
+        <div class="msg" id="coverMsg"></div>
+        <div class="step-nav">
+          <button type="button" class="btn ghost" data-action="home">返回首页</button>
+          <button type="button" class="btn" data-action="next">下一步</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 编码 · 第 2 步：秘密信息 -->
+    <section class="wizard-page" id="page-secret">
+      <div class="page-inner">
+        <div class="step-indicator">步骤 2 / 4</div>
+        <h2 class="page-title">填写秘密信息</h2>
+        <p class="page-sub">真正想藏起来的内容，对方解码后才能看到</p>
+        <label for="secretText">秘密内容</label>
+        <textarea id="secretText" placeholder="例如：周五下午三点，老地方见。"></textarea>
+        <div class="msg" id="secretMsg"></div>
+        <div class="step-nav">
+          <button type="button" class="btn ghost" data-action="prev">上一步</button>
+          <button type="button" class="btn" data-action="next">下一步</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 编码 · 第 3 步：密码 -->
+    <section class="wizard-page" id="page-password">
+      <div class="page-inner">
+        <div class="step-indicator">步骤 3 / 4</div>
+        <h2 class="page-title">设置密码</h2>
+        <p class="page-sub">可选。设置后需要密码才能解密，安全性更高</p>
+        <label for="encodePassword">密码 <span class="hint">（留空则仅隐写，不加密）</span></label>
+        <input type="password" id="encodePassword" placeholder="输入密码，或留空跳过" autocomplete="new-password">
+        <div class="msg" id="passwordMsg"></div>
+        <div class="step-nav">
+          <button type="button" class="btn ghost" data-action="prev">上一步</button>
+          <button type="button" class="btn" id="btnGenerate" data-action="generate">生成隐写文本</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 编码 · 第 4 步：结果 -->
+    <section class="wizard-page" id="page-result">
+      <div class="page-inner">
+        <div class="step-indicator">步骤 4 / 4 · 完成</div>
+        <h2 class="page-title">生成成功</h2>
+        <p class="page-sub">复制文本发送，或复制分享链接（对方打开后自动解密）</p>
+
+        <label>隐写文本</label>
+        <div class="output" id="encodeOut"></div>
+        <div class="meta" id="encodeMeta"></div>
+        <div class="msg" id="encodeMsg"></div>
+
+        <div class="step-nav">
+          <button type="button" class="btn ghost" data-action="prev">上一步</button>
+          <div class="step-nav-right">
+            <button type="button" class="btn ghost" id="btnVisualize">查看隐藏字符</button>
+            <button type="button" class="btn ghost" id="btnCopyEncode">复制文本</button>
+            <button type="button" class="btn" id="btnCopyLink">复制分享链接</button>
+          </div>
+        </div>
+
+        <button type="button" class="home-btn" data-action="home">↩ 返回第一步</button>
+      </div>
+    </section>
+
+    <!-- 解码 · 第 1 步：粘贴 -->
+    <section class="wizard-page" id="page-paste">
+      <div class="page-inner">
+        <div class="step-indicator">步骤 1 / 2</div>
+        <h2 class="page-title">粘贴隐写文本</h2>
+        <p class="page-sub">直接粘贴收到的内容，零宽字符看不见但确实存在</p>
+
+        <label for="decodeIn">隐写文本</label>
+        <textarea id="decodeIn" placeholder="直接粘贴即可…"></textarea>
+
+        <label for="decodePassword">密码 <span class="hint">（如果对方设置了）</span></label>
+        <input type="password" id="decodePassword" placeholder="留空则尝试不加密解码" autocomplete="off">
+
+        <div class="msg" id="pasteMsg"></div>
+
+        <div class="step-nav">
+          <button type="button" class="btn ghost" data-action="home">返回首页</button>
+          <button type="button" class="btn" id="btnDecode" data-action="decode">解码</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 解码 · 第 2 步：结果 -->
+    <section class="wizard-page" id="page-decoded">
+      <div class="page-inner">
+        <div class="step-indicator">步骤 2 / 2 · 完成</div>
+        <h2 class="page-title">解码结果</h2>
+        <p class="page-sub">以下是隐藏在文本中的秘密信息</p>
+
+        <label>秘密内容</label>
+        <div class="output" id="decodeOut"></div>
+        <div class="meta" id="decodeMeta"></div>
+        <div class="msg" id="decodeMsg"></div>
+
+        <div class="step-nav">
+          <button type="button" class="btn ghost" data-action="prev">上一步</button>
+          <div class="step-nav-right">
+            <button type="button" class="btn" id="btnCopyDecode">复制结果</button>
+          </div>
+        </div>
+
+        <button type="button" class="home-btn" data-action="home">↩ 返回第一步</button>
+      </div>
+    </section>
+
   </div>
 </main>
+
 <footer>
-  InvisiText · MIT License · <a href="https://github.com/">GitHub</a>
+  InvisiText · MIT License · 所有处理均在本地完成，不上传任何数据
 </footer>
 
 <script>
-// 零宽字符映射：U+200B = 0, U+200C = 1，U+200D 作为分隔符
-const Z0 = "\u200B", Z1 = "\u200C", SEP = "\u200D";
+(function () {
+  "use strict";
 
-function textToBits(str) {
-  const bytes = new TextEncoder().encode(str);
-  let bits = "";
-  for (const b of bytes) bits += b.toString(2).padStart(8, "0");
-  return bits;
-}
-function bitsToText(bits) {
-  const bytes = [];
-  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
-  return new TextDecoder().decode(new Uint8Array(bytes));
-}
+  /* ============================================================
+   * 主题切换（圆形 emoji 按钮）
+   * ============================================================ */
 
-function encode() {
-  const cover = document.getElementById("coverText").value;
-  const secret = document.getElementById("secretText").value;
-  const msg = document.getElementById("encodeMsg");
-  if (!cover || !secret) { msg.className = "msg err"; msg.textContent = "请同时填写载体文字和秘密信息"; return; }
-  const bits = textToBits(secret);
-  const hidden = bits.split("").map(b => b === "0" ? Z0 : Z1).join("");
-  // 将密文嵌入载体第一个字符之后
-  const out = cover.slice(0, 1) + SEP + hidden + SEP + cover.slice(1);
-  document.getElementById("encodeOut").textContent = out;
-  msg.className = "msg ok";
-  msg.textContent = "已生成，密文共 " + bits.length + " 位，完全不可见";
-}
+  const THEME_KEY = 'invisitext-theme';
+  const themeToggle = document.getElementById('themeToggle');
+  const themeIcon = document.getElementById('themeIcon');
 
-function decode() {
-  const input = document.getElementById("decodeIn").value;
-  const msg = document.getElementById("decodeMsg");
-  const parts = input.split(SEP);
-  if (parts.length < 3 || !parts[1]) { msg.className = "msg err"; msg.textContent = "未检测到隐写内容"; return; }
-  const bits = parts[1].split("").map(c => c === Z0 ? "0" : c === Z1 ? "1" : "").join("");
-  if (!bits || bits.length % 8 !== 0) { msg.className = "msg err"; msg.textContent = "隐写数据损坏"; return; }
-  try {
-    document.getElementById("decodeOut").textContent = bitsToText(bits);
-    msg.className = "msg ok"; msg.textContent = "解码成功";
-  } catch (e) {
-    msg.className = "msg err"; msg.textContent = "解码失败：" + e.message;
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   }
-}
 
-function copyResult(id) {
-  const text = document.getElementById(id).textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const msg = document.getElementById(id === "encodeOut" ? "encodeMsg" : "decodeMsg");
-    msg.className = "msg ok"; msg.textContent = "已复制到剪贴板";
+  function applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      themeIcon.textContent = '🌙';
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      themeIcon.textContent = '☀️';
+    }
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+  }
+
+  // 初始化按钮 emoji（head 内联脚本已经应用过保存的主题）
+  themeIcon.textContent = currentTheme() === 'dark' ? '🌙' : '☀️';
+
+  themeToggle.addEventListener('click', () => {
+    applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+    requestAnimationFrame(syncViewportHeight);
   });
-}
+
+  /* ============================================================
+   * 常量与工具
+   * ============================================================ */
+
+  const $ = (id) => document.getElementById(id);
+
+  const Z0 = "\u200B";
+  const Z1 = "\u200C";
+
+  const MAGIC = [0x49, 0x56, 0x54, 0x58];
+  const VERSION = 0x01;
+  const FLAG_ENCRYPTED = 0x01;
+  const HEADER_SIZE = 8;
+  const CRC_SIZE = 4;
+  const MAX_PAYLOAD = 65535;
+
+  const PBKDF2_ITER = 200000;
+  const SALT_LEN = 16;
+  const IV_LEN = 12;
+
+  const ANIM_MS = 520;
+
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+
+  function crc32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+      crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function bytesToZeroWidth(bytes) {
+    let out = "";
+    for (let i = 0; i < bytes.length; i++) {
+      const b = bytes[i];
+      for (let bit = 7; bit >= 0; bit--) {
+        out += ((b >> bit) & 1) ? Z1 : Z0;
+      }
+    }
+    return out;
+  }
+
+  function zeroWidthToBytes(zw) {
+    if (zw.length === 0 || zw.length % 8 !== 0) return null;
+    const bytes = new Uint8Array(zw.length / 8);
+    for (let i = 0; i < bytes.length; i++) {
+      let b = 0;
+      for (let j = 0; j < 8; j++) {
+        const ch = zw[i * 8 + j];
+        if (ch === Z0) b = (b << 1);
+        else if (ch === Z1) b = (b << 1) | 1;
+        else return null;
+      }
+      bytes[i] = b;
+    }
+    return bytes;
+  }
+
+  function extractZeroWidthRuns(text) {
+    const runs = [];
+    let cur = "";
+    for (const ch of text) {
+      if (ch === Z0 || ch === Z1) {
+        cur += ch;
+      } else {
+        if (cur.length >= 16) runs.push(cur);
+        cur = "";
+      }
+    }
+    if (cur.length >= 16) runs.push(cur);
+    runs.sort((a, b) => b.length - a.length);
+    return runs;
+  }
+
+  function visualize(text) {
+    let out = "";
+    for (const ch of text) {
+      if (ch === Z0) out += "[0]";
+      else if (ch === Z1) out += "[1]";
+      else if (ch === "\u200D") out += "[ZWJ]";
+      else if (ch === "\uFEFF") out += "[BOM]";
+      else out += ch;
+    }
+    return out;
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (_) {}
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /* ---------- Base64URL ---------- */
+  function bytesToBase64Url(bytes) {
+    let bin = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      const sub = bytes.subarray(i, Math.min(i + CHUNK, bytes.length));
+      bin += String.fromCharCode.apply(null, sub);
+    }
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function base64UrlToBytes(str) {
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (str.length % 4) str += '=';
+    const bin = atob(str);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  /* ---------- 压缩（可选） ---------- */
+  async function compressBytes(bytes) {
+    if (typeof CompressionStream === 'undefined') return null;
+    try {
+      const cs = new CompressionStream('deflate-raw');
+      const writer = cs.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      const chunks = [];
+      const reader = cs.readable.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      let total = 0;
+      for (const c of chunks) total += c.length;
+      const out = new Uint8Array(total);
+      let off = 0;
+      for (const c of chunks) { out.set(c, off); off += c.length; }
+      return out;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function decompressBytes(bytes) {
+    if (typeof DecompressionStream === 'undefined') {
+      throw new Error("当前浏览器不支持解压分享链接，请手动粘贴隐写文本");
+    }
+    const ds = new DecompressionStream('deflate-raw');
+    const writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    const chunks = [];
+    const reader = ds.readable.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    let total = 0;
+    for (const c of chunks) total += c.length;
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) { out.set(c, off); off += c.length; }
+    return out;
+  }
+
+  async function packForUrl(packetBytes) {
+    const compressed = await compressBytes(packetBytes);
+    if (compressed && compressed.length < packetBytes.length - 1) {
+      const out = new Uint8Array(compressed.length + 1);
+      out[0] = 0x01;
+      out.set(compressed, 1);
+      return out;
+    }
+    const out = new Uint8Array(packetBytes.length + 1);
+    out[0] = 0x00;
+    out.set(packetBytes, 1);
+    return out;
+  }
+
+  async function unpackFromUrl(bytes) {
+    if (bytes.length < 1) throw new Error("链接数据为空");
+    const flag = bytes[0];
+    const body = bytes.subarray(1);
+    if (flag === 0x00) return body;
+    if (flag === 0x01) return await decompressBytes(body);
+    throw new Error("链接数据格式未知");
+  }
+
+  /* ============================================================
+   * 加密
+   * ============================================================ */
+
+  function ensureCrypto() {
+    if (!window.crypto || !window.crypto.subtle) {
+      throw new Error("当前环境不支持 Web Crypto，请通过 HTTPS 或 localhost 打开");
+    }
+  }
+
+  async function deriveKey(password, salt) {
+    const enc = new TextEncoder();
+    const baseKey = await crypto.subtle.importKey(
+      "raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]
+    );
+    return crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt, iterations: PBKDF2_ITER, hash: "SHA-256" },
+      baseKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  /* ============================================================
+   * 组包 / 解包
+   * ============================================================ */
+
+  async function buildPacket(secretBytes, password) {
+    let flags = 0;
+    let payload;
+
+    if (password) {
+      ensureCrypto();
+      flags |= FLAG_ENCRYPTED;
+      const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+      const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
+      const key = await deriveKey(password, salt);
+      const cipherBuf = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv }, key, secretBytes
+      );
+      const cipher = new Uint8Array(cipherBuf);
+      payload = new Uint8Array(SALT_LEN + IV_LEN + cipher.length);
+      payload.set(salt, 0);
+      payload.set(iv, SALT_LEN);
+      payload.set(cipher, SALT_LEN + IV_LEN);
+    } else {
+      payload = secretBytes;
+    }
+
+    if (payload.length > MAX_PAYLOAD) {
+      throw new Error("秘密信息过长（上限约 64 KB）");
+    }
+
+    const header = new Uint8Array(HEADER_SIZE);
+    header.set(MAGIC, 0);
+    header[4] = VERSION;
+    header[5] = flags;
+    header[6] = (payload.length >>> 8) & 0xFF;
+    header[7] = payload.length & 0xFF;
+
+    const body = new Uint8Array(HEADER_SIZE + payload.length);
+    body.set(header, 0);
+    body.set(payload, HEADER_SIZE);
+
+    const crc = crc32(body);
+    const full = new Uint8Array(body.length + CRC_SIZE);
+    full.set(body, 0);
+    full[body.length]     = (crc >>> 24) & 0xFF;
+    full[body.length + 1] = (crc >>> 16) & 0xFF;
+    full[body.length + 2] = (crc >>> 8)  & 0xFF;
+    full[body.length + 3] =  crc         & 0xFF;
+
+    return full;
+  }
+
+  function parsePacket(bytes) {
+    if (bytes.length < HEADER_SIZE + CRC_SIZE) {
+      throw new Error("数据不完整（长度不足）");
+    }
+    if (bytes[0] !== MAGIC[0] || bytes[1] !== MAGIC[1] ||
+        bytes[2] !== MAGIC[2] || bytes[3] !== MAGIC[3]) {
+      throw new Error("未检测到有效的 InvisiText 数据");
+    }
+    if (bytes[4] !== VERSION) {
+      throw new Error("不支持的版本：" + bytes[4]);
+    }
+    const flags  = bytes[5];
+    const length = (bytes[6] << 8) | bytes[7];
+
+    if (bytes.length < HEADER_SIZE + length + CRC_SIZE) {
+      throw new Error("数据被截断（期望 " + length + " 字节载荷）");
+    }
+
+    const bodyEnd = HEADER_SIZE + length;
+    const expectedCrc =
+      (((bytes[bodyEnd] << 24) >>> 0) |
+       (bytes[bodyEnd + 1] << 16) |
+       (bytes[bodyEnd + 2] << 8)  |
+        bytes[bodyEnd + 3]) >>> 0;
+    const actualCrc = crc32(bytes.subarray(0, bodyEnd));
+
+    if (expectedCrc !== actualCrc) {
+      throw new Error("CRC 校验失败，数据已损坏或被平台修改");
+    }
+
+    return { flags, payload: bytes.subarray(HEADER_SIZE, bodyEnd) };
+  }
+
+  async function decodePacket(bytes, password) {
+    const { flags, payload } = parsePacket(bytes);
+
+    if (flags & FLAG_ENCRYPTED) {
+      ensureCrypto();
+      if (!password) {
+        const e = new Error("此内容已加密，请输入密码");
+        e.code = "NEED_PASSWORD";
+        throw e;
+      }
+      if (payload.length < SALT_LEN + IV_LEN + 16) {
+        throw new Error("加密数据格式错误");
+      }
+      const salt = payload.subarray(0, SALT_LEN);
+      const iv   = payload.subarray(SALT_LEN, SALT_LEN + IV_LEN);
+      const cipher = payload.subarray(SALT_LEN + IV_LEN);
+      const key = await deriveKey(password, salt);
+      let plainBuf;
+      try {
+        plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipher);
+      } catch (_) {
+        throw new Error("解密失败：密码错误或数据损坏");
+      }
+      return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(plainBuf));
+    }
+
+    return new TextDecoder("utf-8", { fatal: true }).decode(payload);
+  }
+
+  /* ============================================================
+   * 状态
+   * ============================================================ */
+
+  const FLOWS = {
+    encode: { pages: ['page-cover', 'page-secret', 'page-password', 'page-result'] },
+    decode: { pages: ['page-paste', 'page-decoded'] },
+  };
+
+  let currentPageId = 'page-mode';
+  let currentFlow   = null;
+  let currentStep   = 0;
+  let animating     = false;
+
+  let encodeResultRaw = "";
+  let encodeShowingVisual = false;
+  let encodePacketBytes = null;
+  let encodePasswordValue = "";
+
+  let decodeResultRaw = "";
+  let decodeShowingVisual = false;
+
+  const viewport = $('wizardViewport');
+
+  /* ============================================================
+   * UI 辅助
+   * ============================================================ */
+
+  function setMsg(el, text, kind) {
+    if (!el) return;
+    el.className = "msg" + (kind ? " " + kind : "");
+    el.textContent = text || "";
+  }
+
+  function setMeta(el, parts) {
+    if (!el) return;
+    el.innerHTML = "";
+    parts.forEach((p) => {
+      if (!p) return;
+      const span = document.createElement("span");
+      span.innerHTML = p;
+      el.appendChild(span);
+    });
+  }
+
+  function setOutput(el, text, { placeholder = false, visualized = false } = {}) {
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle("placeholder", placeholder);
+    el.classList.toggle("visualized", visualized);
+  }
+
+  function clearAllMessages() {
+    document.querySelectorAll('.msg').forEach((el) => {
+      el.textContent = "";
+      el.className = "msg";
+    });
+  }
+
+  function byteLengthOf(str) {
+    return new TextEncoder().encode(str).length;
+  }
+
+  /* ============================================================
+   * 向导导航
+   * ============================================================ */
+
+  function syncViewportHeight() {
+    const active = document.querySelector('.wizard-page.active');
+    if (active) viewport.style.height = active.offsetHeight + 'px';
+  }
+
+  function navigateTo(targetId, direction, onComplete) {
+    if (animating) return;
+    const current = document.getElementById(currentPageId);
+    const next = document.getElementById(targetId);
+    if (!current || !next || current === next) {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    animating = true;
+    clearAllMessages();
+
+    next.classList.remove('exit-top', 'exit-bottom', 'enter-top', 'enter-bottom', 'active');
+    next.classList.add(direction === 'forward' ? 'enter-bottom' : 'enter-top');
+    void next.offsetHeight;
+
+    const nextHeight = next.offsetHeight;
+    viewport.style.height = nextHeight + 'px';
+
+    current.classList.remove('active');
+    current.classList.add(direction === 'forward' ? 'exit-top' : 'exit-bottom');
+
+    next.classList.remove('enter-top', 'enter-bottom');
+    next.classList.add('active');
+
+    currentPageId = targetId;
+
+    setTimeout(() => {
+      current.classList.remove('exit-top', 'exit-bottom');
+      animating = false;
+      syncViewportHeight();
+      if (onComplete) onComplete();
+    }, ANIM_MS);
+  }
+
+  function jumpTo(targetId, onComplete) {
+    document.querySelectorAll('.wizard-page').forEach(p => {
+      p.classList.remove('active', 'exit-top', 'exit-bottom', 'enter-top', 'enter-bottom');
+    });
+    const target = document.getElementById(targetId);
+    if (target) target.classList.add('active');
+    currentPageId = targetId;
+    syncViewportHeight();
+    if (onComplete) onComplete();
+  }
+
+  function goHome() {
+    currentFlow = null;
+    currentStep = 0;
+    navigateTo('page-mode', 'backward');
+  }
+
+  function handleNext() {
+    if (!currentFlow) return;
+    const flow = FLOWS[currentFlow];
+    if (!flow || !flow.pages) return;
+    const nextStep = currentStep + 1;
+    if (nextStep >= flow.pages.length) return;
+
+    if (currentFlow === 'encode' && currentStep === 0) {
+      const cover = $('coverText').value.trim();
+      if (!cover) {
+        setMsg($('coverMsg'), '请填写伪装内容', 'err');
+        $('coverText').focus();
+        return;
+      }
+    }
+    if (currentFlow === 'encode' && currentStep === 1) {
+      const secret = $('secretText').value;
+      if (!secret) {
+        setMsg($('secretMsg'), '请填写秘密信息', 'err');
+        $('secretText').focus();
+        return;
+      }
+    }
+
+    currentStep = nextStep;
+    navigateTo(flow.pages[currentStep], 'forward');
+  }
+
+  function handlePrev() {
+    if (!currentFlow) { goHome(); return; }
+    if (currentStep === 0) { goHome(); return; }
+    const flow = FLOWS[currentFlow];
+    if (!flow || !flow.pages) { goHome(); return; }
+    currentStep -= 1;
+    navigateTo(flow.pages[currentStep], 'backward');
+  }
+
+  function selectMode(mode) {
+    if (mode !== 'encode' && mode !== 'decode') return;
+    currentFlow = mode;
+    currentStep = 0;
+    navigateTo(FLOWS[mode].pages[0], 'forward');
+  }
+
+  /* ============================================================
+   * 编码：生成
+   * ============================================================ */
+
+  async function handleGenerate() {
+    const cover    = $('coverText').value;
+    const secret   = $('secretText').value;
+    const password = $('encodePassword').value;
+
+    if (!cover.trim()) { currentStep = 0; navigateTo('page-cover', 'backward'); return; }
+    if (!secret)       { currentStep = 1; navigateTo('page-secret', 'backward'); return; }
+
+    const btn = $('btnGenerate');
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = '生成中…';
+
+    try {
+      const secretBytes = new TextEncoder().encode(secret);
+      const packet = await buildPacket(secretBytes, password || null);
+      const hidden = bytesToZeroWidth(packet);
+
+      const chars = Array.from(cover);
+      const out = chars[0] + hidden + chars.slice(1).join("");
+
+      encodeResultRaw = out;
+      encodeShowingVisual = false;
+      encodePacketBytes = packet;
+      encodePasswordValue = password || "";
+
+      setOutput($('encodeOut'), out, { placeholder: false });
+      $('btnVisualize').textContent = '查看隐藏字符';
+
+      const ratio = (hidden.length / Math.max(1, byteLengthOf(cover))).toFixed(1);
+      setMeta($('encodeMeta'), [
+        `明文 <code>${byteLengthOf(secret)}</code> B`,
+        `数据包 <code>${packet.length}</code> B`,
+        `隐藏字符 <code>${hidden.length}</code> 个`,
+        `加密：${password ? '<code>AES-256-GCM</code>' : '<code>否</code>'}`,
+        ratio > 20 ? `<span style="color:var(--warn)">载体较短，膨胀比 ${ratio}×</span>` : null,
+      ]);
+
+      currentStep = 3;
+      navigateTo('page-result', 'forward', () => {
+        setMsg($('encodeMsg'),
+          `已生成，共嵌入 ${hidden.length} 个不可见字符（CRC32 校验已附加）`,
+          'ok');
+      });
+    } catch (e) {
+      setMsg($('passwordMsg'), '生成失败：' + (e.message || e), 'err');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  }
+
+  /* ============================================================
+   * 解码
+   * ============================================================ */
+
+  async function handleDecode() {
+    const input    = $('decodeIn').value;
+    const password = $('decodePassword').value;
+
+    if (!input) {
+      setMsg($('pasteMsg'), '请粘贴隐写文本', 'err');
+      $('decodeIn').focus();
+      return;
+    }
+
+    const btn = $('btnDecode');
+    btn.disabled = true;
+    const oldText = btn.textContent;
+    btn.textContent = '解码中…';
+
+    try {
+      const runs = extractZeroWidthRuns(input);
+      if (runs.length === 0) {
+        throw new Error("未检测到零宽字符，可能被平台过滤或内容已损坏");
+      }
+
+      let plain = null;
+      let lastError = null;
+
+      for (const run of runs) {
+        const bytes = zeroWidthToBytes(run);
+        if (!bytes) continue;
+        try {
+          plain = await decodePacket(bytes, password || null);
+          break;
+        } catch (e) {
+          lastError = e;
+          if (e.code === 'NEED_PASSWORD') throw e;
+        }
+      }
+
+      if (plain === null) {
+        throw lastError || new Error("未能在文本中找到有效载荷");
+      }
+
+      decodeResultRaw = plain;
+      decodeShowingVisual = false;
+
+      setOutput($('decodeOut'), plain, { placeholder: false });
+
+      setMeta($('decodeMeta'), [
+        `密文 <code>${byteLengthOf(plain)}</code> B`,
+        `零宽字符段 <code>${runs.length}</code> 个`,
+        `校验：<code>CRC32 通过</code>`,
+      ]);
+
+      currentStep = 1;
+      navigateTo('page-decoded', 'forward', () => {
+        setMsg($('decodeMsg'), '解码成功', 'ok');
+      });
+    } catch (e) {
+      if (e.code === 'NEED_PASSWORD') {
+        setMsg($('pasteMsg'), e.message, 'warn');
+      } else {
+        setMsg($('pasteMsg'), '解码失败：' + (e.message || e), 'err');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  }
+
+  /* ============================================================
+   * 结果页操作
+   * ============================================================ */
+
+  async function copyEncodeResult() {
+    if (!encodeResultRaw) return;
+    const ok = await copyText(encodeResultRaw);
+    setMsg($('encodeMsg'),
+      ok ? "已复制到剪贴板（含隐藏字符，请勿手动编辑）" : "复制失败，请手动选中复制",
+      ok ? "ok" : "err");
+  }
+
+  async function copyDecodeResult() {
+    if (!decodeResultRaw) return;
+    const ok = await copyText(decodeResultRaw);
+    setMsg($('decodeMsg'),
+      ok ? "已复制到剪贴板" : "复制失败，请手动选中复制",
+      ok ? "ok" : "err");
+  }
+
+  function toggleEncodeVisual() {
+    if (!encodeResultRaw) return;
+    encodeShowingVisual = !encodeShowingVisual;
+    if (encodeShowingVisual) {
+      setOutput($('encodeOut'), visualize(encodeResultRaw), { visualized: true });
+      $('btnVisualize').textContent = '隐藏标记';
+    } else {
+      setOutput($('encodeOut'), encodeResultRaw, { visualized: false });
+      $('btnVisualize').textContent = '查看隐藏字符';
+    }
+    syncViewportHeight();
+  }
+
+  /* ============================================================
+   * 分享链接
+   * ============================================================ */
+
+  async function copyShareLink() {
+    if (!encodePacketBytes) return;
+    const msgEl = $('encodeMsg');
+
+    try {
+      const packed = await packForUrl(encodePacketBytes);
+      const b64 = bytesToBase64Url(packed);
+
+      const base = window.location.origin + window.location.pathname;
+      const url = new URL(base);
+      url.searchParams.set('d', b64);
+      if (encodePasswordValue) url.searchParams.set('password', encodePasswordValue);
+
+      const linkStr = url.toString();
+      const ok = await copyText(linkStr);
+
+      if (ok) {
+        setMsg(msgEl,
+          '分享链接已复制，共 ' + linkStr.length + ' 字符' +
+          (encodePasswordValue ? '（含密码，请注意安全）' : ''),
+          'ok');
+      } else {
+        setMsg(msgEl, '复制失败，请手动复制：' + linkStr, 'err');
+      }
+    } catch (e) {
+      setMsg(msgEl, '生成链接失败：' + (e.message || e), 'err');
+    }
+  }
+
+  async function checkUrlForData() {
+    const params = new URLSearchParams(window.location.search);
+    const d = params.get('d');
+    if (!d) return false;
+
+    const pw = params.get('password') || '';
+
+    try {
+      const packed = base64UrlToBytes(d);
+      const packetBytes = await unpackFromUrl(packed);
+      const plain = await decodePacket(packetBytes, pw || null);
+
+      decodeResultRaw = plain;
+
+      setOutput($('decodeOut'), plain, { placeholder: false });
+      setMeta($('decodeMeta'), [
+        `密文 <code>${byteLengthOf(plain)}</code> B`,
+        `来源：<code>分享链接</code>`,
+        `校验：<code>CRC32 通过</code>`,
+      ]);
+
+      try {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState(null, '', cleanUrl);
+      } catch (_) {}
+
+      currentFlow = 'decode';
+      currentStep = 1;
+      jumpTo('page-decoded', () => {
+        setMsg($('decodeMsg'),
+          '已从链接自动解密' + (pw ? '（使用链接中的密码）' : ''),
+          'ok');
+      });
+      return true;
+    } catch (e) {
+      currentFlow = 'decode';
+      currentStep = 0;
+      jumpTo('page-paste', () => {
+        setMsg($('pasteMsg'), '链接解密失败：' + (e.message || e), 'err');
+      });
+      return true;
+    }
+  }
+
+  /* ============================================================
+   * 事件绑定
+   * ============================================================ */
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (btn) {
+      const action = btn.dataset.action;
+      if (action === 'home')      { goHome(); return; }
+      if (action === 'prev')      { handlePrev(); return; }
+      if (action === 'next')      { handleNext(); return; }
+      if (action === 'generate')  { handleGenerate(); return; }
+      if (action === 'decode')    { handleDecode(); return; }
+    }
+
+    const card = e.target.closest('[data-mode]');
+    if (card) {
+      selectMode(card.dataset.mode);
+    }
+  });
+
+  $('btnCopyEncode').addEventListener('click', copyEncodeResult);
+  $('btnCopyDecode').addEventListener('click', copyDecodeResult);
+  $('btnVisualize').addEventListener('click', toggleEncodeVisual);
+  $('btnCopyLink').addEventListener('click', copyShareLink);
+
+  $('secretText').addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleNext();
+    }
+  });
+  $('encodePassword').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleGenerate(); }
+  });
+  $('decodeIn').addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleDecode();
+    }
+  });
+  $('decodePassword').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleDecode(); }
+  });
+
+  window.addEventListener('resize', () => {
+    if (animating) return;
+    syncViewportHeight();
+  });
+
+  window.addEventListener('load', () => {
+    requestAnimationFrame(async () => {
+      syncViewportHeight();
+      setTimeout(syncViewportHeight, 120);
+      await checkUrlForData();
+    });
+  });
+
+  document.querySelectorAll('textarea').forEach((ta) => {
+    ta.addEventListener('input', () => {
+      if (animating) return;
+      const active = document.querySelector('.wizard-page.active');
+      if (active && active.contains(ta)) {
+        syncViewportHeight();
+      }
+    });
+  });
+
+})();
 </script>
 </body>
 </html>
